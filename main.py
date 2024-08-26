@@ -1,68 +1,56 @@
-import pandas as pd
-import numpy as np
 import streamlit as st
+import pandas as pd
 import matplotlib.pyplot as plt
+import seaborn as sns
+import plotly.express as px
 
+
+# Step 1: Data cleaning function
 
 def clean_city_state_country(df):
-
-    replace_dict_city = {
-        'NEW DELHI': 'DELHI',
-        'WEST DELHI': 'DELHI',
-        'NORTH WEST DELHI':'DELHI',
-        'SOUTH DELHI':'DELHI',
-        'EAST DELHI':'DELHI',
-        'NORTH DELHI':'DELHI',
-        'CENTRAL DELHI':'DELHI',
-        'SOUTH WEST DELHI':'DELHI',
-        'NORTH EAST DELHI':'DELHI',
-        'NORTH  WEST  DELHI':'DELHI',
-        'SOUTH  DELHI':'DELHI',
-        'WESTDELHI':'DELHI',
-
-        'CALCUTTA': 'KOLKATA',
-        'BANGALORE': 'BENGALURU',
-
-        'BOMBAY': 'MUMBAI',
-        'MUMBAI SUBURBAN':'MUMBAI',
-        'KANDIVALI EAST MUMBAI':'MUMBAI',
-
-        'NAVI MUMBAI':'NAVI MUMBAI',
-        'NAVIMUMBAI':'NAVI MUMBAI',
-        
+    df['BADD4'] = df['BADD4'].str.upper()
+    df['STATE'] = df['STATE'].str.upper()
+    df['COUNTRY'] = df['COUNTRY'].str.upper()
+    # Combined replacement dictionary for city, state, and country
+    replace_dict = {
+        'BADD4': {
+            'NEW DELHI': 'DELHI',
+            'WEST DELHI': 'DELHI',
+            'NORTH WEST DELHI': 'DELHI',
+            'SOUTH DELHI': 'DELHI',
+            'EAST DELHI': 'DELHI',
+            'NORTH DELHI': 'DELHI',
+            'CENTRAL DELHI': 'DELHI',
+            'SOUTH WEST DELHI': 'DELHI',
+            'NORTH EAST DELHI': 'DELHI',
+            'NORTH  WEST  DELHI': 'DELHI',
+            'SOUTH  DELHI': 'DELHI',
+            'WESTDELHI': 'DELHI',
+            'CALCUTTA': 'KOLKATA',
+            'BANGALORE': 'BENGALURU',
+            'BOMBAY': 'MUMBAI',
+            'MUMBAI SUBURBAN': 'MUMBAI',
+            'KANDIVALI EAST MUMBAI': 'MUMBAI',
+            'NAVI MUMBAI': 'NAVI MUMBAI',
+            'NAVIMUMBAI': 'NAVI MUMBAI'
+        },
+        'STATE': {
+            'TAMILNADU': 'TAMIL NADU',
+            'MAHARASTRA': 'MAHARASHTRA',
+            'MAHARSHTRA': 'MAHARASHTRA'
+        },
+        'COUNTRY': {
+            'India': 'INDIA',
+            'india': 'INDIA',
+            '85': 'INDIA'
+        }
     }
 
-    df['BADD4'] = df['BADD4'].replace(replace_dict_city)
-
-    replace_dict_state = {
-    'TAMIL NADU':'TAMIL NADU',
-    'TAMILNADU':'TAMIL NADU',
-    'TAMIL NADU':'TAMIL NADU',
-
-    'MAHARASHTRA':'MAHARASHTRA',
-
-    'MAHARASTRA':'MAHARASHTRA',
-    'MAHARSHTRA':'MAHARASHTRA'
-
-    }
-
-    df['STATE'] = df['STATE'].replace(replace_dict_state)
-
-
-    replace_dict_country = {
-
-    'INDIA':'INDIA',
-    'India':'INDIA',
-    'india':'INDIA',
-    '85':'INDIA'
-
-    }
-
-    df['COUNTRY'] = df['COUNTRY'].replace(replace_dict_country)
-
+    # Apply the replacement for each relevant column
+    for column, replacements in replace_dict.items():
+        df[column] = df[column].replace(replacements)
+    
     return df
-
-
 
 
 
@@ -73,78 +61,135 @@ def clean_data(df):
     
     # Convert OPENDT to datetime
     df['OPENDT'] = pd.to_datetime(df['OPENDT'], errors='coerce')
+    df['BADD4'] = df['BADD4'].str.upper()
+    df['STATE'] = df['STATE'].str.upper()
+    df['COUNTRY'] = df['COUNTRY'].str.upper()
 
     return df
 
-def correct_city_name(city_name, city_list, threshold=80):
-    from rapidfuzz import process, fuzz
-    match, score = process.extractOne(city_name, city_list, scorer=fuzz.ratio)
-    if score >= threshold:
-        return match
-    return city_name
+
+# Step 2: Pie chart for 'COUNTRY' and 'BEN_POSI'
+
+def create_pie_chart(df):
+#    df = df[df['COUNTRY'].str.upper() != 'INDIA']
+    country_data = df.groupby('COUNTRY')['BEN_POSI'].sum().reset_index()
+    fig = px.pie(country_data, values='BEN_POSI', names='COUNTRY', color_discrete_sequence=px.colors.colorbrewer.Pastel1)
+    return fig
 
 
+def create_country_scatter_chart_without_india(df):
+    df2 = df[df['COUNTRY'] != 'INDIA']
+    df2 = df2[df2['COUNTRY'] != 'india']
+    # Step 1: Group by 'COUNTRY' and sum 'BEN_POSI'
+    country_data = df2.groupby('COUNTRY')['BEN_POSI'].sum().reset_index()
 
-def create_investor_bar_chart(df):
-    investor_data = df.groupby('HOLD1')['BEN_POSI'].sum().nlargest(10)
+    # Step 2: Create the Dot Plot
+    fig = px.scatter(country_data, x='COUNTRY', y='BEN_POSI',
+                    size='BEN_POSI',  # Size of dots based on 'BEN_POSI'
+                    color='COUNTRY',  # Color dots by country
+                    color_discrete_sequence=px.colors.qualitative.D3,  # Use a custom color palette
+                    title="Sum of BEN_POSI by Country"
+                    )
+
+    # Step 3: Customize the Chart
+    fig.update_layout(
+        xaxis_title="Country",
+        yaxis_title="Sum of BEN_POSI",
+        template="plotly_dark",
+        plot_bgcolor="rgba(0,0,0,0)", 
+        paper_bgcolor="rgba(0,0,0,0)",
+        
+        title_font=dict(size=24, color="white"),
+        xaxis=dict(showgrid=False),
+        yaxis=dict(showgrid=True, gridwidth=0.5, 
+                gridcolor="rgba(0,0,0,0.3)")
+    )
+
+    return fig
+
+# Step 3: Bar chart for top banks
+def create_top_banks_chart(df):
+    top_banks = df['BANK_NAME'].value_counts().nlargest(5).reset_index()
+    top_banks.columns = ['BANK_NAME', 'Count']
+    fig = px.bar(top_banks, x='BANK_NAME', y='Count',color = 'BANK_NAME', title='Top 5 Banks by Count')
+    return fig
+
+# Step 4: Bar chart for top investors
+def create_top_investors_chart(df):
+    top_investors = df.groupby('HOLD1')['BEN_POSI'].sum().nlargest(5).reset_index()
+    fig = px.bar(top_investors, x='HOLD1', y='BEN_POSI', color = 'HOLD1', title='Top 5 Investors by Sum of BEN_POSI')
+    return fig
+
+# Step 5: Track changes in 'BEN_POSI' and 'HOLD1' from a new Excel file
+def track_changes(df, new_df):
+    merged_df = pd.merge(df[['HOLD1', 'BEN_POSI']], new_df[['HOLD1', 'BEN_POSI']], on='HOLD1', how='outer', suffixes=('_old', '_new'))
+    merged_df['BEN_POSI_Change'] = merged_df['BEN_POSI_new'] - merged_df['BEN_POSI_old']
+    return merged_df
+
+# Additional KPIs: Top 5 States, Top 5 Cities, Top 10 Investors
+def create_top_states_chart(df):
+    top_states = df['STATE'].value_counts().nlargest(5).reset_index()
+    top_states.columns = ['STATE', 'Count']
+    fig = px.bar(top_states, x='STATE', y='Count', color = 'STATE',title='Top 5 States by Count', color_discrete_sequence=px.colors.colorbrewer.Pastel1)
+    return fig
+
+def create_top_cities_chart(df):
+    top_cities = df['BADD4'].value_counts().nlargest(5).reset_index()
+    top_cities.columns = ['City', 'Count']
+    fig = px.bar(top_cities, x='City', y='Count', 
+                 title='Top 5 Cities by Count',
+                 color = 'City',
+                  color_discrete_sequence=px.colors.colorbrewer.Pastel1)
+    return fig
+
+def create_top_investors_ben_posi_chart(df):
+    top_investors_ben_posi = df.groupby('HOLD1')['BEN_POSI'].sum().nlargest(10).reset_index()
+    fig = px.bar(top_investors_ben_posi, x='HOLD1', y='BEN_POSI', title='Top 10 Investors by Sum of BEN_POSI',color = 'HOLD1', color_discrete_sequence=px.colors.colorbrewer.Pastel1)
     
-    fig, ax = plt.subplots()
-    ax.bar(investor_data.index, investor_data.values, color='lightgreen')
-    ax.set_title('Top 10 Investors by Total BEN_POSI')
-    ax.set_ylabel('Total BEN_POSI')
-    ax.set_xlabel('Investor Name')
-    ax.set_xticklabels(investor_data.index, rotation=45, ha='right')
+    return fig
+
+# Streamlit App Layout
+st.title("Investor Relations Dashboard")
+
+uploaded_file = st.file_uploader("Upload your Excel file", type=["xlsx","xls"])
+
+if uploaded_file:
+    df = pd.read_excel(uploaded_file)
+    df = clean_data(df)
+    clean_city_state_country
+
+    st.header("Pie Chart: Country Distribution")
+    st.plotly_chart(create_pie_chart(df))
     
-    st.pyplot(fig)
+    st.header("Pie Chart: Country Distribution without INDIA")
+    st.plotly_chart(create_country_scatter_chart_without_india(df))
 
-def create_bank_bar_chart(df):
-    bank_data = df['BANK_NAME'].value_counts().head(10)
+
+
+    st.header("Top 5 Banks by Count")
+    st.plotly_chart(create_top_banks_chart(df))
+
+    st.header("Top 5 Investors by Sum of BEN_POSI")
+    st.plotly_chart(create_top_investors_chart(df))
+
+    st.header("Top 5 States by Count")
+    st.plotly_chart(create_top_states_chart(df))
+
+    st.header("Top 5 Cities by Count")
+    st.plotly_chart(create_top_cities_chart(df))
+
+    st.header("Top 10 Investors by Sum of BEN_POSI")
+    st.plotly_chart(create_top_investors_ben_posi_chart(df))
+
+    st.header("Upload New Excel File to Track Changes in BEN_POSI")
+    new_file = st.file_uploader("Upload the new Excel file", type=["xlsx","xls"])
     
-    fig, ax = plt.subplots()
-    ax.bar(bank_data.index, bank_data.values, color='skyblue')
-    ax.set_title('Top 10 Banks by Number of Accounts')
-    ax.set_ylabel('Number of Accounts')
-    ax.set_xlabel('Bank Name')
-    ax.set_xticklabels(bank_data.index, rotation=45, ha='right')
-    
-    st.pyplot(fig)
+    if new_file:
+        new_df = pd.read_excel(new_file)
+        new_df = clean_data(new_df)
+        changes_df = track_changes(df, new_df)
+        st.write("Changes in BEN_POSI and HOLD1")
+        st.dataframe(changes_df)
 
-
-def create_country_pie_chart(df):
-    df_filtered = df[df['COUNTRY'] != 'INDIA']
-    country_data = df_filtered.groupby('COUNTRY')['BEN_POSI'].agg(['count', 'sum'])
-    
-    # Define pastel colors
-    pastel_colors = ['#FFB3BA', '#FFDFBA', '#FFFFBA', '#BAFFC9', '#BAE1FF', '#B4A7D6', '#D5A6BD']
-    
-    # Create a pie chart
-    fig, ax = plt.subplots()
-    ax.pie(country_data['sum'], labels=country_data.index, autopct='%1.1f%%', startangle=140, colors=pastel_colors)
-    ax.set_title('Distribution of BEN_POSI by Country (Excluding India)')
-    
-    st.pyplot(fig)
-
-
-
-
-
-def main():
-    st.title("Investor Relations Dashboard")
-
-    uploaded_file = st.file_uploader("Upload Excel File", type=["xlsx", "xls", "csv"])
-    if uploaded_file:
-        df = pd.read_excel(uploaded_file)
-        df = clean_city_state_country(df)
-        df = clean_data(df)
-
-        st.subheader("Pie Chart: BEN_POSI Distribution by Country")
-        create_country_pie_chart(df)
-
-        st.subheader("Bar Chart: Top Banks")
-        create_bank_bar_chart(df)
-
-        st.subheader("Bar Chart: Top Investors")
-        create_investor_bar_chart(df)
-
-if __name__ == "__main__":
-    main()
+st.sidebar.header("Dashboard Settings")
+# Add additional settings here if needed
